@@ -163,10 +163,46 @@ func setupIPTables(ipt IPTables, rules []IPTablesRule) error {
 }
 
 func teardownIPTables(ipt IPTables, rules []IPTablesRule) {
+	rules = appendNonFullyRandomSpecs(rules)
+
 	for _, rule := range rules {
 		log.Info("Deleting iptables rule: ", strings.Join(rule.rulespec, " "))
 		// We ignore errors here because if there's an error it's almost certainly because the rule
 		// doesn't exist, which is fine (we don't need to delete rules that don't exist)
 		ipt.Delete(rule.table, rule.chain, rule.rulespec...)
 	}
+}
+
+func appendNonFullyRandomSpecs(rules []IPTablesRule) ([]IPTablesRule){
+	newRules := make([]IPTablesRule,0)
+	for _, rule := range rules {
+		spec, trimmed := trimRandom(rule.rulespec)
+		if trimmed {
+			newRule := rule
+			newRule.rulespec = spec
+			newRules = append(newRules, newRule)
+		}
+	}
+	return append(rules, newRules...)
+}
+
+func trimRandom(spec []string) ([]string, bool) {
+	indexToDelete := -1
+	trimmed := false
+
+	for idx, arg := range spec {
+		if arg == "--random-fully" {
+			indexToDelete = idx
+			break
+		}
+	}
+
+	if indexToDelete >= 0 {
+		log.Infof("Trimming %s\n", spec)
+		spec = append(spec[:indexToDelete], spec[indexToDelete+1:]...)
+		trimmed = true
+	}
+
+	return spec, trimmed
+
 }
